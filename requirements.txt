@@ -1,0 +1,12 @@
+diffusers==0.30.0
+numpy
+opencv-python==4.10.0.84
+opencv-python-headless==4.10.0.84
+Pillow==10.4.0
+potracer==0.0.4
+streamlit==1.36.0
+torch==2.3.1
+transformers==4.43.3
+torchvision==0.18.1
+scikit-image==0.24.0
+accelerate==0.33.0

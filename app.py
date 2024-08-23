@@ -1,8 +1,11 @@
 import os
 import tempfile
 <<<<<<< HEAD
+<<<<<<< HEAD
 import uuid
 =======
+=======
+>>>>>>> parent of 634d5c7 (Update app.py)
 from functools import lru_cache
 >>>>>>> parent of 634d5c7 (Update app.py)
 
@@ -57,6 +60,9 @@ def load_rmbg_pipeline():
 =======
 @st.cache_data
 @lru_cache(maxsize=32)
+<<<<<<< HEAD
+>>>>>>> parent of 634d5c7 (Update app.py)
+=======
 >>>>>>> parent of 634d5c7 (Update app.py)
 def generate_image(user_prompt, is_cartoon, is_fourk, dim_option, steps):
     """Generate an image based on the given parameters."""
@@ -90,6 +96,9 @@ def load_rmbg_pipeline():
         return None
 
 @st.cache_data
+<<<<<<< HEAD
+>>>>>>> parent of 634d5c7 (Update app.py)
+=======
 >>>>>>> parent of 634d5c7 (Update app.py)
 def remove_background(input_image):
     """Remove the background from the given image."""
@@ -123,6 +132,7 @@ def enhance_edges(input_image, edge_params=None):
             'edge_enhance': 2,
         }
 <<<<<<< HEAD
+<<<<<<< HEAD
     
     # Convert to grayscale
     gray_image = input_image.convert("L")
@@ -142,6 +152,8 @@ def enhance_edges(input_image, edge_params=None):
     
     return edges
 =======
+=======
+>>>>>>> parent of 634d5c7 (Update app.py)
     gray_image = np.array(input_image.convert("L"))
     blurred_image = cv2.GaussianBlur(
         gray_image,

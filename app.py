@@ -1,11 +1,6 @@
-"""
-This module provides functionality for image processing and SVG conversion.
-It includes image generation, background removal, edge enhancement, and SVG conversion.
-"""
-
 import os
 import tempfile
-import io
+import uuid
 from functools import lru_cache
 
 import cv2
@@ -17,9 +12,6 @@ import huggingface_hub
 from diffusers import DiffusionPipeline
 from transformers.pipelines import pipeline
 from potrace import Bitmap, POTRACE_TURNPOLICY_BLACK, POTRACE_TURNPOLICY_MINORITY
-
-# Disable no-member warning for cv2
-# pylint: disable=no-member
 
 # Increase timeout for model downloads
 huggingface_hub.constants.HF_HUB_DOWNLOAD_TIMEOUT = 900  # 15 minutes
@@ -84,7 +76,8 @@ def load_rmbg_pipeline():
         st.error(f"Error loading background removal model: {error}")
         return None
 
-def remove_background(input_image):
+@st.cache_data
+def remove_background(input_image, _image_id=None):
     """Remove the background from the given image."""
     if not isinstance(input_image, Image.Image):
         raise TypeError("Input image must be a PIL image")
@@ -105,7 +98,7 @@ def remove_background(input_image):
     raise ValueError("Unexpected result type from background removal pipeline")
 
 @st.cache_data
-def enhance_edges(_input_image, edge_params=None):
+def enhance_edges(_input_image, edge_params=None, _image_id=None):
     """Enhance the edges of the given image."""
     if edge_params is None:
         edge_params = {
@@ -244,8 +237,6 @@ def file_to_svg_beta(image, filename):
         svg_file.write("</svg>")
     return output_path
 
-# ... (previous imports and functions remain the same)
-
 # Streamlit app
 st.title("Image to SVG Converter")
 
@@ -254,21 +245,20 @@ if 'current_image' not in st.session_state:
     st.session_state.current_image = None
 if 'bg_removed_image' not in st.session_state:
     st.session_state.bg_removed_image = None
-if 'image_id' not in st.session_state:
-    st.session_state.image_id = 0
+if 'current_image_id' not in st.session_state:
+    st.session_state.current_image_id = None
 
 image_source = st.radio("Select image source:", ("Upload Image", "Generate Image"))
 
 if image_source == "Upload Image":
     uploaded_file = st.file_uploader("Choose an image file", type=["png", "jpg", "jpeg"])
     if uploaded_file is not None:
-        uploaded_image = Image.open(uploaded_file)
-        # Check if the uploaded image is different from the current one
-        if st.session_state.current_image is None or uploaded_image != st.session_state.current_image:
-            st.session_state.current_image = uploaded_image
-            st.session_state.bg_removed_image = None
-            st.session_state.image_id += 1  # Increment image_id to force recalculation
-        st.image(uploaded_image, caption="Uploaded Image", use_column_width=True)
+        # Generate a new unique ID for this upload
+        new_image_id = str(uuid.uuid4())
+        st.session_state.current_image = Image.open(uploaded_file)
+        st.session_state.current_image_id = new_image_id
+        st.session_state.bg_removed_image = None
+        st.image(st.session_state.current_image, caption="Uploaded Image", use_column_width=True)
 
 elif image_source == "Generate Image":
     prompt = st.text_input("Enter a prompt for image generation")
@@ -282,22 +272,21 @@ elif image_source == "Generate Image":
             prompt, cartoon, fourk, dimensional_option, num_inference_steps
         )
         if generated_result is not None:
+            new_image_id = str(uuid.uuid4())
             st.session_state.current_image = generated_result
+            st.session_state.current_image_id = new_image_id
             st.session_state.bg_removed_image = None
-            st.session_state.image_id += 1  # Increment image_id to force recalculation
             st.image(generated_result, caption="Generated Image", use_column_width=True)
 
 if st.session_state.current_image is not None:
     if st.button("Remove Background"):
-        st.session_state.bg_removed_image = remove_background(st.session_state.current_image)
+        st.session_state.bg_removed_image = remove_background(st.session_state.current_image, _image_id=st.session_state.current_image_id)
         st.image(st.session_state.bg_removed_image, caption="Image with Background Removed", use_column_width=True)
 
     if st.button("Show Enhanced Image"):
-        # Use bg_removed_image if it exists, otherwise use current_image
         image_to_enhance = st.session_state.bg_removed_image if st.session_state.bg_removed_image is not None else st.session_state.current_image
-        edge_enhanced_result = enhance_edges(image_to_enhance)
+        edge_enhanced_result = enhance_edges(image_to_enhance, _image_id=st.session_state.current_image_id)
         
-        # Update the appropriate image in session state
         if st.session_state.bg_removed_image is not None:
             st.session_state.bg_removed_image = edge_enhanced_result
         else:
@@ -308,10 +297,8 @@ if st.session_state.current_image is not None:
     # Add option to choose SVG style
     svg_style = st.radio("Select SVG Style", ("Black and White", "Filled", "Beta Version"))
     if st.button("Convert to SVG"):
-        # Use the most recent image (either bg_removed_image or current_image)
         image_to_convert = st.session_state.bg_removed_image if st.session_state.bg_removed_image is not None else st.session_state.current_image
         
-        # Create a temporary file to store the SVG
         with tempfile.NamedTemporaryFile(delete=False, suffix='.svg') as tmp_file:
             svg_filename = os.path.basename(tmp_file.name)
 
@@ -326,11 +313,9 @@ if st.session_state.current_image is not None:
                     SVG_FILL_TYPE
                 )
 
-        # Read the SVG file
         with open(svg_output_path, "r", encoding="utf-8") as file:
             svg_content = file.read()
 
-        # Offer the SVG file for download
         st.download_button(
             label="Download SVG",
             data=svg_content,
@@ -338,7 +323,6 @@ if st.session_state.current_image is not None:
             mime="image/svg+xml"
         )
 
-        # Clean up the temporary file
         os.unlink(svg_output_path)
 
         st.success("SVG conversion complete. Click the 'Download SVG' button to save the file.")
@@ -351,4 +335,4 @@ if st.session_state.current_image is not None:
         st.image(st.session_state.current_image, caption="Current Image", use_column_width=True)
 
 # Display current image_id for debugging
-st.sidebar.text(f"Current Image ID: {st.session_state.image_id}")
+st.sidebar.text(f"Current Image ID: {st.session_state.current_image_id}")

@@ -1,20 +1,14 @@
 import os
 import tempfile
 import uuid
-from functools import lru_cache
 
-import cv2
 import numpy as np
 import streamlit as st
 from PIL import Image, ImageFilter, ImageOps
 import torch
-import huggingface_hub
 from diffusers import DiffusionPipeline
 from transformers import pipeline
 from potrace import Bitmap, POTRACE_TURNPOLICY_BLACK, POTRACE_TURNPOLICY_MINORITY
-
-# Increase timeout for model downloads
-huggingface_hub.constants.HF_HUB_DOWNLOAD_TIMEOUT = 900  # 15 minutes
 
 # Define options
 DIMENSIONAL_OPTIONS = ["2D", "3D"]
@@ -46,7 +40,15 @@ def load_diffusion_pipeline():
         st.error(f"Error loading DiffusionPipeline: {str(error)}")
         return None
 
-@st.cache_data
+@st.cache_resource
+def load_rmbg_pipeline():
+    """Load the background removal pipeline."""
+    try:
+        return pipeline("image-segmentation", model="briaai/RMBG-1.4", trust_remote_code=True)
+    except Exception as error:
+        st.error(f"Error loading background removal model: {error}")
+        return None
+
 def generate_image(user_prompt, is_cartoon, is_fourk, dim_option, steps):
     """Generate an image based on the given parameters."""
     pipe = load_diffusion_pipeline()
@@ -67,16 +69,6 @@ def generate_image(user_prompt, is_cartoon, is_fourk, dim_option, steps):
         st.error(f"Error generating image: {str(error)}")
         return None
 
-@st.cache_resource
-def load_rmbg_pipeline():
-    """Load the background removal pipeline."""
-    try:
-        return pipeline("image-segmentation", model="briaai/RMBG-1.4", trust_remote_code=True)
-    except Exception as error:
-        st.error(f"Error loading background removal model: {error}")
-        return None
-
-@st.cache_data
 def remove_background(input_image):
     """Remove the background from the given image."""
     if not isinstance(input_image, Image.Image):
@@ -95,7 +87,6 @@ def remove_background(input_image):
     
     raise ValueError("Unexpected result type from background removal pipeline")
 
-@st.cache_data
 def enhance_edges(input_image, edge_params=None):
     """Enhance the edges of the given image using Pillow."""
     if edge_params is None:

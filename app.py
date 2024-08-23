@@ -6,7 +6,7 @@ from functools import lru_cache
 import cv2
 import numpy as np
 import streamlit as st
-from PIL import Image
+from PIL import Image, ImageFilter, ImageOps
 import torch
 import huggingface_hub
 from diffusers import DiffusionPipeline
@@ -97,37 +97,30 @@ def remove_background(input_image):
 
 @st.cache_data
 def enhance_edges(input_image, edge_params=None):
-    """Enhance the edges of the given image."""
+    """Enhance the edges of the given image using Pillow."""
     if edge_params is None:
         edge_params = {
-            'dilation_iterations': 2,
-            'canny_threshold1': 50,
-            'canny_threshold2': 150,
-            'blur_ksize': 5,
-            'erosion_iterations': 1
+            'blur_radius': 2,
+            'edge_enhance': 2,
         }
-    gray_image = np.array(input_image.convert("L"))
-    blurred_image = cv2.GaussianBlur(
-        gray_image,
-        (edge_params['blur_ksize'], edge_params['blur_ksize']),
-        0
-    )
-    edges = cv2.Canny(
-        blurred_image,
-        edge_params['canny_threshold1'],
-        edge_params['canny_threshold2']
-    )
-    dilated_edges = cv2.dilate(
-        edges,
-        np.ones((3, 3), np.uint8),
-        iterations=edge_params['dilation_iterations']
-    )
-    refined_edges = cv2.erode(
-        dilated_edges,
-        np.ones((3, 3), np.uint8),
-        iterations=edge_params['erosion_iterations']
-    )
-    return Image.fromarray(refined_edges)
+    
+    # Convert to grayscale
+    gray_image = input_image.convert("L")
+    
+    # Apply Gaussian blur
+    blurred_image = gray_image.filter(ImageFilter.GaussianBlur(radius=edge_params['blur_radius']))
+    
+    # Find edges
+    edges = blurred_image.filter(ImageFilter.FIND_EDGES)
+    
+    # Enhance edges
+    for _ in range(edge_params['edge_enhance']):
+        edges = edges.filter(ImageFilter.EDGE_ENHANCE_MORE)
+    
+    # Invert the image so edges are black on white background
+    edges = ImageOps.invert(edges)
+    
+    return edges
 
 def create_svg_path(curve):
     """Create SVG path from a curve."""

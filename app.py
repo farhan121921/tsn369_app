@@ -264,7 +264,12 @@ if image_source == "Upload Image":
         st.image(uploaded_image, caption="Uploaded Image", use_column_width=True)
 
 elif image_source == "Generate Image":
-    # ... (keep the generate image code as is)
+    prompt = st.text_input("Enter a prompt for image generation")
+    cartoon = st.checkbox("Cartoon style")
+    fourk = st.checkbox("4K resolution")
+    dimensional_option = st.selectbox("Dimensional style", DIMENSIONAL_OPTIONS)
+    num_inference_steps = st.slider("Number of inference steps", 1, 100, 50)
+    
     if st.button("Generate Image"):
         generated_result = generate_image(
             prompt, cartoon, fourk, dimensional_option, num_inference_steps

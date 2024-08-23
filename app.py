@@ -247,9 +247,11 @@ def file_to_svg_beta(image, filename):
 # Streamlit app
 st.title("Image to SVG Converter")
 
-# Initialize session state for current_image if it doesn't exist
+# Initialize session state for current_image and bg_removed_image if they don't exist
 if 'current_image' not in st.session_state:
     st.session_state.current_image = None
+if 'bg_removed_image' not in st.session_state:
+    st.session_state.bg_removed_image = None
 
 image_source = st.radio("Select image source:", ("Upload Image", "Generate Image"))
 
@@ -258,6 +260,7 @@ if image_source == "Upload Image":
     if uploaded_file is not None:
         uploaded_image = Image.open(uploaded_file)
         st.session_state.current_image = uploaded_image
+        st.session_state.bg_removed_image = None  # Reset bg_removed_image when a new image is uploaded
         st.image(uploaded_image, caption="Uploaded Image", use_column_width=True)
 
 elif image_source == "Generate Image":
@@ -268,31 +271,37 @@ elif image_source == "Generate Image":
         )
         if generated_result is not None:
             st.session_state.current_image = generated_result
+            st.session_state.bg_removed_image = None  # Reset bg_removed_image when a new image is generated
             st.image(generated_result, caption="Generated Image", use_column_width=True)
 
 if st.session_state.current_image is not None:
     if st.button("Remove Background"):
-        st.session_state.current_image = remove_background(st.session_state.current_image)
-        st.image(st.session_state.current_image, caption="Image with Background Removed", use_column_width=True)
+        st.session_state.bg_removed_image = remove_background(st.session_state.current_image)
+        st.image(st.session_state.bg_removed_image, caption="Image with Background Removed", use_column_width=True)
 
     if st.button("Show Enhanced Image"):
-        edge_enhanced_result = enhance_edges(st.session_state.current_image)
+        # Use bg_removed_image if it exists, otherwise use current_image
+        image_to_enhance = st.session_state.bg_removed_image if st.session_state.bg_removed_image is not None else st.session_state.current_image
+        edge_enhanced_result = enhance_edges(image_to_enhance)
         st.session_state.current_image = edge_enhanced_result
         st.image(edge_enhanced_result, caption="Enhanced Image", use_column_width=True)
 
     # Add option to choose SVG style
     svg_style = st.radio("Select SVG Style", ("Black and White", "Filled", "Beta Version"))
     if st.button("Convert to SVG"):
+        # Use the most recent image (either bg_removed_image or current_image)
+        image_to_convert = st.session_state.bg_removed_image if st.session_state.bg_removed_image is not None else st.session_state.current_image
+        
         # Create a temporary file to store the SVG
         with tempfile.NamedTemporaryFile(delete=False, suffix='.svg') as tmp_file:
             svg_filename = os.path.basename(tmp_file.name)
 
             if svg_style == "Beta Version":
-                svg_output_path = file_to_svg_beta(st.session_state.current_image, svg_filename)
+                svg_output_path = file_to_svg_beta(image_to_convert, svg_filename)
             else:
                 SVG_FILL_TYPE = "bw" if svg_style == "Black and White" else "filled"
                 svg_output_path = file_to_svg(
-                    st.session_state.current_image,
+                    image_to_convert,
                     svg_filename,
                     os.path.dirname(tmp_file.name),
                     SVG_FILL_TYPE

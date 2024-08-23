@@ -252,6 +252,8 @@ if 'current_image' not in st.session_state:
     st.session_state.current_image = None
 if 'bg_removed_image' not in st.session_state:
     st.session_state.bg_removed_image = None
+if 'last_uploaded_image' not in st.session_state:
+    st.session_state.last_uploaded_image = None
 
 image_source = st.radio("Select image source:", ("Upload Image", "Generate Image"))
 
@@ -259,8 +261,10 @@ if image_source == "Upload Image":
     uploaded_file = st.file_uploader("Choose an image file", type=["png", "jpg", "jpeg"])
     if uploaded_file is not None:
         uploaded_image = Image.open(uploaded_file)
-        st.session_state.current_image = uploaded_image
-        st.session_state.bg_removed_image = None  # Reset bg_removed_image when a new image is uploaded
+        if uploaded_file != st.session_state.last_uploaded_image:
+            st.session_state.current_image = uploaded_image
+            st.session_state.bg_removed_image = None  # Reset bg_removed_image when a new image is uploaded
+            st.session_state.last_uploaded_image = uploaded_file
         st.image(uploaded_image, caption="Uploaded Image", use_column_width=True)
 
 elif image_source == "Generate Image":
@@ -277,6 +281,7 @@ elif image_source == "Generate Image":
         if generated_result is not None:
             st.session_state.current_image = generated_result
             st.session_state.bg_removed_image = None  # Reset bg_removed_image when a new image is generated
+            st.session_state.last_uploaded_image = None  # Reset last_uploaded_image
             st.image(generated_result, caption="Generated Image", use_column_width=True)
 
 if st.session_state.current_image is not None:

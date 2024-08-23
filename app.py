@@ -288,7 +288,13 @@ if st.session_state.current_image is not None:
         # Use bg_removed_image if it exists, otherwise use current_image
         image_to_enhance = st.session_state.bg_removed_image if st.session_state.bg_removed_image is not None else st.session_state.current_image
         edge_enhanced_result = enhance_edges(image_to_enhance)
-        st.session_state.current_image = edge_enhanced_result
+        
+        # Update the appropriate image in session state
+        if st.session_state.bg_removed_image is not None:
+            st.session_state.bg_removed_image = edge_enhanced_result
+        else:
+            st.session_state.current_image = edge_enhanced_result
+        
         st.image(edge_enhanced_result, caption="Enhanced Image", use_column_width=True)
 
     # Add option to choose SVG style
@@ -328,4 +334,10 @@ if st.session_state.current_image is not None:
         os.unlink(svg_output_path)
 
         st.success("SVG conversion complete. Click the 'Download SVG' button to save the file.")
-print("")
+
+    # Display the current state of the image
+    st.subheader("Current Image State")
+    if st.session_state.bg_removed_image is not None:
+        st.image(st.session_state.bg_removed_image, caption="Current Image (Background Removed)", use_column_width=True)
+    else:
+        st.image(st.session_state.current_image, caption="Current Image", use_column_width=True)

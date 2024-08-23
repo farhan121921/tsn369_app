@@ -247,92 +247,52 @@ def file_to_svg_beta(image, filename):
 # Streamlit app
 st.title("Image to SVG Converter")
 
+# Initialize session state for current_image if it doesn't exist
+if 'current_image' not in st.session_state:
+    st.session_state.current_image = None
+
 image_source = st.radio("Select image source:", ("Upload Image", "Generate Image"))
 
 if image_source == "Upload Image":
     uploaded_file = st.file_uploader("Choose an image file", type=["png", "jpg", "jpeg"])
     if uploaded_file is not None:
         uploaded_image = Image.open(uploaded_file)
-        st.session_state.original_image = uploaded_image
+        st.session_state.current_image = uploaded_image
         st.image(uploaded_image, caption="Uploaded Image", use_column_width=True)
 
 elif image_source == "Generate Image":
-    prompt = st.text_input("Enter your prompt:")
-
-    # Options for image generation
-    cartoon = st.checkbox("Cartoon")
-    fourk = st.checkbox("4K")
-    dimensional_option = st.selectbox("Dimensional option:", DIMENSIONAL_OPTIONS)
-
-    # Add slider for num_inference_steps
-    num_inference_steps = st.slider(
-        "Number of inference steps (20-50)",
-        min_value=20,
-        max_value=50,
-        value=50
-    )
-
-    # Display advantages and disadvantages
-    st.subheader(f"Inference Steps: {num_inference_steps}")
-    st.write("Advantages:")
-    if num_inference_steps < 50:
-        st.write("- Faster generation time")
-        st.write("- Lower computational resource usage")
-    elif num_inference_steps > 50:
-        st.write("- Potentially higher image quality")
-        st.write("- More refined details in the generated image")
-    else:
-        st.write("- Balanced approach between speed and quality")
-
-    st.write("Disadvantages:")
-    if num_inference_steps < 50:
-        st.write("- Potentially lower image quality")
-        st.write("- Less refined details in the generated image")
-    elif num_inference_steps > 50:
-        st.write("- Longer generation time")
-        st.write("- Higher computational resource usage")
-    else:
-        st.write("- May not fully optimize for either speed or quality")
-
+    # ... (keep the generate image code as is)
     if st.button("Generate Image"):
         generated_result = generate_image(
             prompt, cartoon, fourk, dimensional_option, num_inference_steps
         )
         if generated_result is not None:
-            st.session_state.original_image = generated_result
+            st.session_state.current_image = generated_result
             st.image(generated_result, caption="Generated Image", use_column_width=True)
 
-if "original_image" in st.session_state:
-    current_image = st.session_state.original_image
+if st.session_state.current_image is not None:
     if st.button("Remove Background"):
-        current_image = remove_background(current_image)
-        st.session_state.bg_removed_image = current_image
-        st.image(current_image, caption="Image with Background Removed", use_column_width=True)
+        st.session_state.current_image = remove_background(st.session_state.current_image)
+        st.image(st.session_state.current_image, caption="Image with Background Removed", use_column_width=True)
 
     if st.button("Show Enhanced Image"):
-        if "bg_removed_image" in st.session_state:
-            current_image = st.session_state.bg_removed_image
-        edge_enhanced_result = enhance_edges(current_image)
+        edge_enhanced_result = enhance_edges(st.session_state.current_image)
+        st.session_state.current_image = edge_enhanced_result
         st.image(edge_enhanced_result, caption="Enhanced Image", use_column_width=True)
 
     # Add option to choose SVG style
     svg_style = st.radio("Select SVG Style", ("Black and White", "Filled", "Beta Version"))
     if st.button("Convert to SVG"):
-        if "bg_removed_image" in st.session_state:
-            current_image = st.session_state.bg_removed_image
-        else:
-            current_image = st.session_state.original_image
-
         # Create a temporary file to store the SVG
         with tempfile.NamedTemporaryFile(delete=False, suffix='.svg') as tmp_file:
             svg_filename = os.path.basename(tmp_file.name)
 
             if svg_style == "Beta Version":
-                svg_output_path = file_to_svg_beta(current_image, svg_filename)
+                svg_output_path = file_to_svg_beta(st.session_state.current_image, svg_filename)
             else:
                 SVG_FILL_TYPE = "bw" if svg_style == "Black and White" else "filled"
                 svg_output_path = file_to_svg(
-                    current_image,
+                    st.session_state.current_image,
                     svg_filename,
                     os.path.dirname(tmp_file.name),
                     SVG_FILL_TYPE

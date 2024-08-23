@@ -1,11 +1,6 @@
 import os
 import tempfile
-<<<<<<< HEAD
-<<<<<<< HEAD
-import uuid
-=======
-=======
->>>>>>> parent of 634d5c7 (Update app.py)
+import io
 from functools import lru_cache
 >>>>>>> parent of 634d5c7 (Update app.py)
 
@@ -59,11 +54,6 @@ def load_rmbg_pipeline():
 
 =======
 @st.cache_data
-@lru_cache(maxsize=32)
-<<<<<<< HEAD
->>>>>>> parent of 634d5c7 (Update app.py)
-=======
->>>>>>> parent of 634d5c7 (Update app.py)
 def generate_image(user_prompt, is_cartoon, is_fourk, dim_option, steps):
     """Generate an image based on the given parameters."""
     pipe = load_diffusion_pipeline()
@@ -95,11 +85,6 @@ def load_rmbg_pipeline():
         st.error(f"Error loading background removal model: {error}")
         return None
 
-@st.cache_data
-<<<<<<< HEAD
->>>>>>> parent of 634d5c7 (Update app.py)
-=======
->>>>>>> parent of 634d5c7 (Update app.py)
 def remove_background(input_image):
     """Remove the background from the given image."""
     if not isinstance(input_image, Image.Image):
@@ -128,33 +113,13 @@ def enhance_edges(input_image, edge_params=None):
 >>>>>>> parent of 634d5c7 (Update app.py)
     if edge_params is None:
         edge_params = {
-            'blur_radius': 2,
-            'edge_enhance': 2,
+            'dilation_iterations': 2,
+            'canny_threshold1': 50,
+            'canny_threshold2': 150,
+            'blur_ksize': 5,
+            'erosion_iterations': 1
         }
-<<<<<<< HEAD
-<<<<<<< HEAD
-    
-    # Convert to grayscale
-    gray_image = input_image.convert("L")
-    
-    # Apply Gaussian blur
-    blurred_image = gray_image.filter(ImageFilter.GaussianBlur(radius=edge_params['blur_radius']))
-    
-    # Find edges
-    edges = blurred_image.filter(ImageFilter.FIND_EDGES)
-    
-    # Enhance edges
-    for _ in range(edge_params['edge_enhance']):
-        edges = edges.filter(ImageFilter.EDGE_ENHANCE_MORE)
-    
-    # Invert the image so edges are black on white background
-    edges = ImageOps.invert(edges)
-    
-    return edges
-=======
-=======
->>>>>>> parent of 634d5c7 (Update app.py)
-    gray_image = np.array(input_image.convert("L"))
+    gray_image = np.array(_input_image.convert("L"))
     blurred_image = cv2.GaussianBlur(
         gray_image,
         (edge_params['blur_ksize'], edge_params['blur_ksize']),

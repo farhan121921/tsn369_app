@@ -1,6 +1,10 @@
 import os
 import tempfile
+<<<<<<< HEAD
 import uuid
+=======
+from functools import lru_cache
+>>>>>>> parent of 634d5c7 (Update app.py)
 
 import numpy as np
 import streamlit as st
@@ -40,6 +44,7 @@ def load_diffusion_pipeline():
         st.error(f"Error loading DiffusionPipeline: {str(error)}")
         return None
 
+<<<<<<< HEAD
 @st.cache_resource
 def load_rmbg_pipeline():
     """Load the background removal pipeline."""
@@ -49,6 +54,10 @@ def load_rmbg_pipeline():
         st.error(f"Error loading background removal model: {error}")
         return None
 
+=======
+@st.cache_data
+@lru_cache(maxsize=32)
+>>>>>>> parent of 634d5c7 (Update app.py)
 def generate_image(user_prompt, is_cartoon, is_fourk, dim_option, steps):
     """Generate an image based on the given parameters."""
     pipe = load_diffusion_pipeline()
@@ -69,6 +78,19 @@ def generate_image(user_prompt, is_cartoon, is_fourk, dim_option, steps):
         st.error(f"Error generating image: {str(error)}")
         return None
 
+<<<<<<< HEAD
+=======
+@st.cache_resource
+def load_rmbg_pipeline():
+    """Load the background removal pipeline."""
+    try:
+        return pipeline("image-segmentation", model="briaai/RMBG-1.4", trust_remote_code=True)
+    except RuntimeError as error:
+        st.error(f"Error loading background removal model: {error}")
+        return None
+
+@st.cache_data
+>>>>>>> parent of 634d5c7 (Update app.py)
 def remove_background(input_image):
     """Remove the background from the given image."""
     if not isinstance(input_image, Image.Image):
@@ -87,13 +109,20 @@ def remove_background(input_image):
     
     raise ValueError("Unexpected result type from background removal pipeline")
 
+<<<<<<< HEAD
 def enhance_edges(input_image, edge_params=None):
     """Enhance the edges of the given image using Pillow."""
+=======
+@st.cache_data
+def enhance_edges(input_image, edge_params=None):
+    """Enhance the edges of the given image."""
+>>>>>>> parent of 634d5c7 (Update app.py)
     if edge_params is None:
         edge_params = {
             'blur_radius': 2,
             'edge_enhance': 2,
         }
+<<<<<<< HEAD
     
     # Convert to grayscale
     gray_image = input_image.convert("L")
@@ -112,6 +141,30 @@ def enhance_edges(input_image, edge_params=None):
     edges = ImageOps.invert(edges)
     
     return edges
+=======
+    gray_image = np.array(input_image.convert("L"))
+    blurred_image = cv2.GaussianBlur(
+        gray_image,
+        (edge_params['blur_ksize'], edge_params['blur_ksize']),
+        0
+    )
+    edges = cv2.Canny(
+        blurred_image,
+        edge_params['canny_threshold1'],
+        edge_params['canny_threshold2']
+    )
+    dilated_edges = cv2.dilate(
+        edges,
+        np.ones((3, 3), np.uint8),
+        iterations=edge_params['dilation_iterations']
+    )
+    refined_edges = cv2.erode(
+        dilated_edges,
+        np.ones((3, 3), np.uint8),
+        iterations=edge_params['erosion_iterations']
+    )
+    return Image.fromarray(refined_edges)
+>>>>>>> parent of 634d5c7 (Update app.py)
 
 def create_svg_path(curve):
     """Create SVG path from a curve."""

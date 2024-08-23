@@ -1,16 +1,28 @@
+"""
+This module provides functionality for image processing and SVG conversion.
+It includes image generation, background removal, edge enhancement, and SVG conversion.
+"""
+
 import os
 import tempfile
 import io
 from functools import lru_cache
->>>>>>> parent of 634d5c7 (Update app.py)
 
+import cv2
 import numpy as np
 import streamlit as st
-from PIL import Image, ImageFilter, ImageOps
+from PIL import Image
 import torch
+import huggingface_hub
 from diffusers import DiffusionPipeline
-from transformers import pipeline
+from transformers.pipelines import pipeline
 from potrace import Bitmap, POTRACE_TURNPOLICY_BLACK, POTRACE_TURNPOLICY_MINORITY
+
+# Disable no-member warning for cv2
+# pylint: disable=no-member
+
+# Increase timeout for model downloads
+huggingface_hub.constants.HF_HUB_DOWNLOAD_TIMEOUT = 900  # 15 minutes
 
 # Define options
 DIMENSIONAL_OPTIONS = ["2D", "3D"]
@@ -24,7 +36,7 @@ def create_prompt(user_prompt, is_cartoon, is_fourk, dim_option):
         options.append("4k")
     if dim_option:
         options.append(dim_option.lower())
-    return f"{user_prompt}, {', '.join(options)}" if options else user_prompt
+    return f"{user_prompt}, {', '.join(options)}"
 
 @st.cache_resource
 def load_diffusion_pipeline():
@@ -38,21 +50,10 @@ def load_diffusion_pipeline():
             resume_download=True,
         ).to(device)
         return pipe
-    except Exception as error:
+    except RuntimeError as error:
         st.error(f"Error loading DiffusionPipeline: {str(error)}")
         return None
 
-<<<<<<< HEAD
-@st.cache_resource
-def load_rmbg_pipeline():
-    """Load the background removal pipeline."""
-    try:
-        return pipeline("image-segmentation", model="briaai/RMBG-1.4", trust_remote_code=True)
-    except Exception as error:
-        st.error(f"Error loading background removal model: {error}")
-        return None
-
-=======
 @st.cache_data
 def generate_image(user_prompt, is_cartoon, is_fourk, dim_option, steps):
     """Generate an image based on the given parameters."""
@@ -70,12 +71,10 @@ def generate_image(user_prompt, is_cartoon, is_fourk, dim_option, steps):
             guidance_scale=guidance_scale
         ).images[0]
         return result_image
-    except Exception as error:
+    except RuntimeError as error:
         st.error(f"Error generating image: {str(error)}")
         return None
 
-<<<<<<< HEAD
-=======
 @st.cache_resource
 def load_rmbg_pipeline():
     """Load the background removal pipeline."""
@@ -98,19 +97,16 @@ def remove_background(input_image):
 
     if isinstance(result, Image.Image):
         return result
-    if isinstance(result, list) and result and 'mask' in result[0]:
-        return Image.fromarray(result[0]['mask'])
-    
+    if 'image' in result:
+        return result['image']
+    if 'path' in result:
+        return Image.open(result['path'])
+
     raise ValueError("Unexpected result type from background removal pipeline")
 
-<<<<<<< HEAD
-def enhance_edges(input_image, edge_params=None):
-    """Enhance the edges of the given image using Pillow."""
-=======
 @st.cache_data
-def enhance_edges(input_image, edge_params=None):
+def enhance_edges(_input_image, edge_params=None):
     """Enhance the edges of the given image."""
->>>>>>> parent of 634d5c7 (Update app.py)
     if edge_params is None:
         edge_params = {
             'dilation_iterations': 2,
@@ -141,7 +137,6 @@ def enhance_edges(input_image, edge_params=None):
         iterations=edge_params['erosion_iterations']
     )
     return Image.fromarray(refined_edges)
->>>>>>> parent of 634d5c7 (Update app.py)
 
 def create_svg_path(curve):
     """Create SVG path from a curve."""
@@ -203,7 +198,7 @@ def file_to_svg(input_image, filename, output_dir, svg_fill_type):
 
 def file_to_svg_beta(image, filename):
     """Convert the image to SVG format using the beta version."""
-    bitmap = Bitmap(np.array(image.convert("L")), blacklevel=0.5)
+    bitmap = Bitmap(image, blacklevel=0.5)
     plist = bitmap.trace(
         turdsize=2,
         turnpolicy=POTRACE_TURNPOLICY_MINORITY,
@@ -252,82 +247,102 @@ def file_to_svg_beta(image, filename):
 # Streamlit app
 st.title("Image to SVG Converter")
 
-# Initialize session state variables
-if 'current_image' not in st.session_state:
-    st.session_state.current_image = None
-if 'bg_removed_image' not in st.session_state:
-    st.session_state.bg_removed_image = None
-if 'current_image_id' not in st.session_state:
-    st.session_state.current_image_id = None
-
 image_source = st.radio("Select image source:", ("Upload Image", "Generate Image"))
 
 if image_source == "Upload Image":
     uploaded_file = st.file_uploader("Choose an image file", type=["png", "jpg", "jpeg"])
     if uploaded_file is not None:
-        # Generate a new unique ID for this upload
-        new_image_id = str(uuid.uuid4())
-        st.session_state.current_image = Image.open(uploaded_file)
-        st.session_state.current_image_id = new_image_id
-        st.session_state.bg_removed_image = None
-        st.image(st.session_state.current_image, caption="Uploaded Image", use_column_width=True)
+        uploaded_image = Image.open(uploaded_file)
+        st.session_state.original_image = uploaded_image
+        st.image(uploaded_image, caption="Uploaded Image", use_column_width=True)
 
 elif image_source == "Generate Image":
-    prompt = st.text_input("Enter a prompt for image generation")
-    cartoon = st.checkbox("Cartoon style")
-    fourk = st.checkbox("4K resolution")
-    dimensional_option = st.selectbox("Dimensional style", DIMENSIONAL_OPTIONS)
-    num_inference_steps = st.slider("Number of inference steps", 1, 100, 50)
-    
+    prompt = st.text_input("Enter your prompt:")
+
+    # Options for image generation
+    cartoon = st.checkbox("Cartoon")
+    fourk = st.checkbox("4K")
+    dimensional_option = st.selectbox("Dimensional option:", DIMENSIONAL_OPTIONS)
+
+    # Add slider for num_inference_steps
+    num_inference_steps = st.slider(
+        "Number of inference steps (20-50)",
+        min_value=20,
+        max_value=50,
+        value=50
+    )
+
+    # Display advantages and disadvantages
+    st.subheader(f"Inference Steps: {num_inference_steps}")
+    st.write("Advantages:")
+    if num_inference_steps < 50:
+        st.write("- Faster generation time")
+        st.write("- Lower computational resource usage")
+    elif num_inference_steps > 50:
+        st.write("- Potentially higher image quality")
+        st.write("- More refined details in the generated image")
+    else:
+        st.write("- Balanced approach between speed and quality")
+
+    st.write("Disadvantages:")
+    if num_inference_steps < 50:
+        st.write("- Potentially lower image quality")
+        st.write("- Less refined details in the generated image")
+    elif num_inference_steps > 50:
+        st.write("- Longer generation time")
+        st.write("- Higher computational resource usage")
+    else:
+        st.write("- May not fully optimize for either speed or quality")
+
     if st.button("Generate Image"):
         generated_result = generate_image(
             prompt, cartoon, fourk, dimensional_option, num_inference_steps
         )
         if generated_result is not None:
-            new_image_id = str(uuid.uuid4())
-            st.session_state.current_image = generated_result
-            st.session_state.current_image_id = new_image_id
-            st.session_state.bg_removed_image = None
+            st.session_state.original_image = generated_result
             st.image(generated_result, caption="Generated Image", use_column_width=True)
 
-if st.session_state.current_image is not None:
+if "original_image" in st.session_state:
+    current_image = st.session_state.original_image
     if st.button("Remove Background"):
-        st.session_state.bg_removed_image = remove_background(st.session_state.current_image)
-        st.image(st.session_state.bg_removed_image, caption="Image with Background Removed", use_column_width=True)
+        current_image = remove_background(current_image)
+        st.session_state.bg_removed_image = current_image
+        st.image(current_image, caption="Image with Background Removed", use_column_width=True)
 
     if st.button("Show Enhanced Image"):
-        image_to_enhance = st.session_state.bg_removed_image if st.session_state.bg_removed_image is not None else st.session_state.current_image
-        edge_enhanced_result = enhance_edges(image_to_enhance)
-        
-        if st.session_state.bg_removed_image is not None:
-            st.session_state.bg_removed_image = edge_enhanced_result
-        else:
-            st.session_state.current_image = edge_enhanced_result
-        
+        if "bg_removed_image" in st.session_state:
+            current_image = st.session_state.bg_removed_image
+        edge_enhanced_result = enhance_edges(current_image)
         st.image(edge_enhanced_result, caption="Enhanced Image", use_column_width=True)
 
     # Add option to choose SVG style
     svg_style = st.radio("Select SVG Style", ("Black and White", "Filled", "Beta Version"))
     if st.button("Convert to SVG"):
-        image_to_convert = st.session_state.bg_removed_image if st.session_state.bg_removed_image is not None else st.session_state.current_image
-        
+        if "bg_removed_image" in st.session_state:
+            current_image = st.session_state.bg_removed_image
+        else:
+            current_image = st.session_state.original_image
+
+        # Create a temporary file to store the SVG
         with tempfile.NamedTemporaryFile(delete=False, suffix='.svg') as tmp_file:
             svg_filename = os.path.basename(tmp_file.name)
 
             if svg_style == "Beta Version":
-                svg_output_path = file_to_svg_beta(image_to_convert, svg_filename)
+                svg_output_path = file_to_svg_beta(current_image, svg_filename)
             else:
                 SVG_FILL_TYPE = "bw" if svg_style == "Black and White" else "filled"
                 svg_output_path = file_to_svg(
-                    image_to_convert,
+                    current_image,
                     svg_filename,
                     os.path.dirname(tmp_file.name),
                     SVG_FILL_TYPE
                 )
 
+        # Read the SVG file
         with open(svg_output_path, "r", encoding="utf-8") as file:
             svg_content = file.read()
 
+        # Offer the SVG file for download
         st.download_button(
             label="Download SVG",
             data=svg_content,
@@ -335,16 +350,8 @@ if st.session_state.current_image is not None:
             mime="image/svg+xml"
         )
 
+        # Clean up the temporary file
         os.unlink(svg_output_path)
 
         st.success("SVG conversion complete. Click the 'Download SVG' button to save the file.")
-
-    # Display the current state of the image
-    st.subheader("Current Image State")
-    if st.session_state.bg_removed_image is not None:
-        st.image(st.session_state.bg_removed_image, caption="Current Image (Background Removed)", use_column_width=True)
-    else:
-        st.image(st.session_state.current_image, caption="Current Image", use_column_width=True)
-
-# Display current image_id for debugging
-st.sidebar.text(f"Current Image ID: {st.session_state.current_image_id}")
+print("")

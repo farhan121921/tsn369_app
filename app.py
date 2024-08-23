@@ -10,7 +10,7 @@ from PIL import Image
 import torch
 import huggingface_hub
 from diffusers import DiffusionPipeline
-from transformers.pipelines import pipeline
+from transformers import pipeline
 from potrace import Bitmap, POTRACE_TURNPOLICY_BLACK, POTRACE_TURNPOLICY_MINORITY
 
 # Increase timeout for model downloads
@@ -28,7 +28,7 @@ def create_prompt(user_prompt, is_cartoon, is_fourk, dim_option):
         options.append("4k")
     if dim_option:
         options.append(dim_option.lower())
-    return f"{user_prompt}, {', '.join(options)}"
+    return f"{user_prompt}, {', '.join(options)}" if options else user_prompt
 
 @st.cache_resource
 def load_diffusion_pipeline():
@@ -42,7 +42,7 @@ def load_diffusion_pipeline():
             resume_download=True,
         ).to(device)
         return pipe
-    except RuntimeError as error:
+    except Exception as error:
         st.error(f"Error loading DiffusionPipeline: {str(error)}")
         return None
 
@@ -63,7 +63,7 @@ def generate_image(user_prompt, is_cartoon, is_fourk, dim_option, steps):
             guidance_scale=guidance_scale
         ).images[0]
         return result_image
-    except RuntimeError as error:
+    except Exception as error:
         st.error(f"Error generating image: {str(error)}")
         return None
 
@@ -72,12 +72,12 @@ def load_rmbg_pipeline():
     """Load the background removal pipeline."""
     try:
         return pipeline("image-segmentation", model="briaai/RMBG-1.4", trust_remote_code=True)
-    except RuntimeError as error:
+    except Exception as error:
         st.error(f"Error loading background removal model: {error}")
         return None
 
 @st.cache_data
-def remove_background(input_image, _image_id=None):
+def remove_background(input_image):
     """Remove the background from the given image."""
     if not isinstance(input_image, Image.Image):
         raise TypeError("Input image must be a PIL image")
@@ -90,15 +90,13 @@ def remove_background(input_image, _image_id=None):
 
     if isinstance(result, Image.Image):
         return result
-    if 'image' in result:
-        return result['image']
-    if 'path' in result:
-        return Image.open(result['path'])
-
+    if isinstance(result, list) and result and 'mask' in result[0]:
+        return Image.fromarray(result[0]['mask'])
+    
     raise ValueError("Unexpected result type from background removal pipeline")
 
 @st.cache_data
-def enhance_edges(_input_image, edge_params=None, _image_id=None):
+def enhance_edges(input_image, edge_params=None):
     """Enhance the edges of the given image."""
     if edge_params is None:
         edge_params = {
@@ -108,7 +106,7 @@ def enhance_edges(_input_image, edge_params=None, _image_id=None):
             'blur_ksize': 5,
             'erosion_iterations': 1
         }
-    gray_image = np.array(_input_image.convert("L"))
+    gray_image = np.array(input_image.convert("L"))
     blurred_image = cv2.GaussianBlur(
         gray_image,
         (edge_params['blur_ksize'], edge_params['blur_ksize']),
@@ -191,7 +189,7 @@ def file_to_svg(input_image, filename, output_dir, svg_fill_type):
 
 def file_to_svg_beta(image, filename):
     """Convert the image to SVG format using the beta version."""
-    bitmap = Bitmap(image, blacklevel=0.5)
+    bitmap = Bitmap(np.array(image.convert("L")), blacklevel=0.5)
     plist = bitmap.trace(
         turdsize=2,
         turnpolicy=POTRACE_TURNPOLICY_MINORITY,
@@ -280,12 +278,12 @@ elif image_source == "Generate Image":
 
 if st.session_state.current_image is not None:
     if st.button("Remove Background"):
-        st.session_state.bg_removed_image = remove_background(st.session_state.current_image, _image_id=st.session_state.current_image_id)
+        st.session_state.bg_removed_image = remove_background(st.session_state.current_image)
         st.image(st.session_state.bg_removed_image, caption="Image with Background Removed", use_column_width=True)
 
     if st.button("Show Enhanced Image"):
         image_to_enhance = st.session_state.bg_removed_image if st.session_state.bg_removed_image is not None else st.session_state.current_image
-        edge_enhanced_result = enhance_edges(image_to_enhance, _image_id=st.session_state.current_image_id)
+        edge_enhanced_result = enhance_edges(image_to_enhance)
         
         if st.session_state.bg_removed_image is not None:
             st.session_state.bg_removed_image = edge_enhanced_result

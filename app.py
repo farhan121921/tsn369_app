@@ -5,7 +5,6 @@ It includes image generation, background removal, edge enhancement, and SVG conv
 
 import os
 import tempfile
-import io
 from functools import lru_cache
 
 import cv2
@@ -55,6 +54,7 @@ def load_diffusion_pipeline():
         return None
 
 @st.cache_data
+@lru_cache(maxsize=32)
 def generate_image(user_prompt, is_cartoon, is_fourk, dim_option, steps):
     """Generate an image based on the given parameters."""
     pipe = load_diffusion_pipeline()
@@ -105,7 +105,7 @@ def remove_background(input_image):
     raise ValueError("Unexpected result type from background removal pipeline")
 
 @st.cache_data
-def enhance_edges(_input_image, edge_params=None):
+def enhance_edges(input_image, edge_params=None):
     """Enhance the edges of the given image."""
     if edge_params is None:
         edge_params = {
@@ -115,7 +115,7 @@ def enhance_edges(_input_image, edge_params=None):
             'blur_ksize': 5,
             'erosion_iterations': 1
         }
-    gray_image = np.array(_input_image.convert("L"))
+    gray_image = np.array(input_image.convert("L"))
     blurred_image = cv2.GaussianBlur(
         gray_image,
         (edge_params['blur_ksize'], edge_params['blur_ksize']),
